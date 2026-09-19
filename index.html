@@ -1030,12 +1030,26 @@ function pickMrDangTarget(npc) {
   npc.targetZ = tz + 0.5;
 }
 
+// Actual ground height at a column, read straight from the real voxel data rather than
+// the procedural heightAt() noise function. heightAt() never learns about areas that get
+// flattened/carved afterward (the school plaza, the secret tunnel, the clearing, the
+// lake) — so inside the tunnel it was returning the original bumpy terrain height instead
+// of the real flattened floor, which threw off both the NPC's obstacle checks and his
+// walking height and made him freeze the moment he stepped inside.
+function groundHeightAt(x, z) {
+  const ix = Math.floor(x), iz = Math.floor(z);
+  for (let y = WORLD_HEIGHT + 12; y >= BEDROCK_Y; y--) {
+    if (world.has(key(ix, y, iz))) return y;
+  }
+  return BEDROCK_Y;
+}
+
 // True if there's a solid block sticking up above natural ground level at this column
 // (a wall, tree, border, or quiz block) — but NOT just a normal rise in the terrain,
 // so Mr. Logiscool can still walk over gentle hills without getting stuck.
 function npcObstacleAt(x, z) {
   const ix = Math.floor(x), iz = Math.floor(z);
-  const h = heightAt(ix, iz);
+  const h = groundHeightAt(ix, iz);
   for (let y = h + 1; y <= h + 6; y++) {
     const k = key(ix, y, iz);
     if (world.has(k) || quizBlocks.has(k)) return true;
@@ -1089,7 +1103,7 @@ function updateMrDang(npc, dt, playerPos, camera) {
 
   // Smoothly follow the ground height instead of snapping, so walking across uneven
   // terrain (or between columns with different heights) doesn't look like teleporting.
-  const targetGroundY = heightAt(Math.floor(npc.x), Math.floor(npc.z)) + 1;
+  const targetGroundY = groundHeightAt(Math.floor(npc.x), Math.floor(npc.z)) + 1;
   npc.y += (targetGroundY - npc.y) * Math.min(1, dt * 10);
   npc.group.position.set(npc.x, npc.y, npc.z);
 
@@ -1158,7 +1172,7 @@ function startPortalQuest() {
   // Mr. Logiscool "steps out" of the finished school, right in front of its door.
   mrDang.x = PASSAGE_X + 0.5;
   mrDang.z = SCHOOL_Z0 - 1 + 0.5;
-  mrDang.y = heightAt(PASSAGE_X, SCHOOL_Z0 - 1) + 1;
+  mrDang.y = groundHeightAt(PASSAGE_X, SCHOOL_Z0 - 1) + 1;
   mrDang.group.position.set(mrDang.x, mrDang.y, mrDang.z);
   mrDang.quote = "The building is finished! Come on, I found something behind it - follow me!";
   mrDang.quoteTimer = 9999; // hold this line instead of rotating through trivia while leading
